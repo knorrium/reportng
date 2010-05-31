@@ -28,6 +28,15 @@ import java.util.TreeSet;
 import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.Collections;
+
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartUtilities;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.plot.PiePlot;
+import org.jfree.data.general.DefaultPieDataset;
+import java.awt.Color;
+
+
 import org.apache.velocity.VelocityContext;
 import org.testng.ISuite;
 import org.testng.ISuiteResult;
@@ -57,6 +66,8 @@ public class HTMLReporter extends AbstractReporter
     private static final String OUTPUT_FILE = "output.html";
     private static final String CUSTOM_STYLE_FILE = "custom.css";
 
+    private static final String REPORT_FILE = "report.png";
+
     private static final String SUITE_KEY = "suite";
     private static final String SUITES_KEY = "suites";
     private static final String GROUPS_KEY = "groups";
@@ -79,7 +90,7 @@ public class HTMLReporter extends AbstractReporter
         super(TEMPLATES_PATH);
     }
 
-    
+
     /**
      * Generates a set of HTML files that contain data about the outcome of
      * the specified test suites.
@@ -107,6 +118,7 @@ public class HTMLReporter extends AbstractReporter
             createSuiteList(suites, outputDirectory);
             createGroups(suites, outputDirectory);
             createResults(suites, outputDirectory);
+            createCharts(suites, outputDirectory);
             // Chronology disabled until I figure out how to make it less nonsensical.
             //createChronology(suites, outputDirectory);
             createLog(outputDirectory);
@@ -188,6 +200,91 @@ public class HTMLReporter extends AbstractReporter
             ++index;
         }
     }
+
+
+
+    /**
+     * Generate a chart file for each test in each suite.
+     * @param outputDirectory The target directory for the generated file(s).
+     */
+    private void createCharts(List<ISuite> suites, File outputDirectory) throws Exception
+    {
+        int index = 1;
+        for (ISuite suite : suites)
+        {
+            int index2 = 1;
+            for (ISuiteResult result : suite.getResults().values())
+            {
+                VelocityContext context = createContext();
+                context.put(RESULT_KEY, result);
+                context.put(FAILED_CONFIG_KEY, sortByTestClass(result.getTestContext().getFailedConfigurations()));
+                context.put(SKIPPED_CONFIG_KEY, sortByTestClass(result.getTestContext().getSkippedConfigurations()));
+                context.put(FAILED_TESTS_KEY, sortByTestClass(result.getTestContext().getFailedTests()));
+                context.put(SKIPPED_TESTS_KEY, sortByTestClass(result.getTestContext().getSkippedTests()));
+                context.put(PASSED_TESTS_KEY, sortByTestClass(result.getTestContext().getPassedTests()));
+                String fileName = String.format("suite%d_test%d_%s", index, index2, REPORT_FILE);
+                //generateFile(new File(outputDirectory, fileName),  RESULTS_FILE + ".png", context);
+                ++index2;
+
+		int skips = result.getTestContext().getSkippedTests().size();
+		int success = result.getTestContext().getPassedTests().size();
+		int failures = result.getTestContext().getFailedTests().size();
+		int tests = skips + success + failures;
+
+		DefaultPieDataset dataset = new DefaultPieDataset();
+		JFreeChart chart;
+
+		// Defining the dataset
+		dataset.setValue("Passed (" + (100*success/tests) + "%)", success);
+		dataset.setValue("Failed (" + (100*failures/tests) + "%)", failures);
+		dataset.setValue("Skipped (" + (100*skips/tests) + "%)", skips);
+
+		
+		chart = ChartFactory.createPieChart(result.getTestContext().getName(), dataset, false, false, false);
+
+		PiePlot plot = (PiePlot)chart.getPlot();
+
+		// Specify the colors here
+		Color[] colors = {Color.green, Color.red, Color.blue};
+		PieRenderer renderer = new PieRenderer(colors);
+		renderer.setColor(plot, dataset);
+
+		try
+		{
+			// This will create a PNG image
+			ChartUtilities.saveChartAsPNG(new File(outputDirectory, fileName), chart, 400,	220);
+		}
+		catch (Exception e)
+		{
+			System.out.println("Exception while creating the chart");
+		}
+
+
+
+
+
+
+
+            }
+            ++index;
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     private void createChronology(List<ISuite> suites, File outputDirectory) throws Exception
@@ -314,4 +411,28 @@ public class HTMLReporter extends AbstractReporter
             copyFile(outputDirectory, customStylesheet, CUSTOM_STYLE_FILE);
         }
     }
+
+	public static class PieRenderer
+	{
+		private Color[] color;
+
+		public PieRenderer(Color[] color)
+		{
+			this.color = color;
+		}       
+
+		public void setColor(PiePlot plot, DefaultPieDataset dataset)
+		{
+			List <Comparable> keys = dataset.getKeys();
+			int aInt;
+
+			for (int i = 0; i < keys.size(); i++)
+			{
+				aInt = i % this.color.length;
+				plot.setSectionPaint(keys.get(i), this.color[aInt]);
+			}
+		}
+	}
+
+
 }
