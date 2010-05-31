@@ -67,6 +67,8 @@
   <tr class="test">
     <td class="test">
       <a href="suite${suiteId}_test${velocityCount}_results.html">${result.testContext.name}</a>
+      <br>
+      <img src="suite${suiteId}_test${velocityCount}_report.png">
     </td>
     <td class="duration">
       $utils.formatDuration($utils.getDuration($result.testContext))s
